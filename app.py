@@ -51,6 +51,9 @@ def create_app(config_name='development'):
 
     return app
 
+env = os.getenv('FLASK_ENV', 'development')
+app = create_app(env)
+
 
 if __name__ == '__main__':
     env = os.getenv('FLASK_ENV', 'development')
