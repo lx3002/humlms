@@ -3,7 +3,7 @@ from sqlalchemy import func
 
 
 class AnalyticsService:
-    """Business logic for analytics and reporting."""
+    
 
     @staticmethod
     def record_event(user_id, metric_type, metric_value=None, course_id=None, metadata=None):
@@ -21,7 +21,7 @@ class AnalyticsService:
 
     @staticmethod
     def get_student_performance(student_id):
-        """Get comprehensive performance data for a student."""
+        
         enrollments = Enrollment.query.filter_by(student_id=student_id).all()
         submissions = Submission.query.filter_by(student_id=student_id).all()
 

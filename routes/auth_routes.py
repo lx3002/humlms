@@ -30,12 +30,12 @@ def register_page():
 def register():
     data = request.get_json()
     if not data:
-        return jsonify({'error': 'No data provided'}), 400
+        return jsonify({'error': 'No data provided'}), 404
 
     required = ['email', 'password', 'first_name', 'last_name']
     for field in required:
         if not data.get(field):
-            return jsonify({'error': f'{field} is required'}), 400
+            return jsonify({'error': f'{field} is required'}), 404
 
     user, error = AuthenticationService.register(
         email=data['email'],

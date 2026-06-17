@@ -4,7 +4,7 @@ from datetime import datetime
 db = SQLAlchemy()
 
 
-# ──────────────────────────── USERS ────────────────────────────
+#USERS 
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -72,6 +72,7 @@ class Course(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
     lecturer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    ##admin_id = db.Column(db.Integer, db.Foreignkey('user_id'), nullable= True),
     category = db.Column(db.String(100), nullable=True)
     is_published = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -200,7 +201,7 @@ class Exam(db.Model):
     is_published = db.Column(db.Boolean, default=False)
     grades_released = db.Column(db.Boolean, default=False)
     shuffle_questions = db.Column(db.Boolean, default=True)
-    allow_review = db.Column(db.Boolean, default=False)
+    allow_review = db.Column(db.Boolean, default=True)
     risk_threshold = db.Column(db.Integer, default=100)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

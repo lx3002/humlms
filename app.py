@@ -7,15 +7,15 @@ from database.models import db
 
 
 def create_app(config_name='development'):
-    """Application factory pattern."""
+    
     app = Flask(__name__)
     app.config.from_object(config_by_name[config_name])
 
-    # Ensure required directories exist
+    
     os.makedirs(app.config.get('UPLOAD_FOLDER', 'uploads'), exist_ok=True)
     os.makedirs(app.config.get('SCREENSHOT_FOLDER', 'screenshots'), exist_ok=True)
 
-    # Initialize extensions
+  
     db.init_app(app)
     JWTManager(app)
     CORS(app)

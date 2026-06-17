@@ -2,20 +2,23 @@ import bcrypt
 from functools import wraps
 from flask import jsonify
 from flask_jwt_extended import get_jwt_identity, get_jwt, verify_jwt_in_request
+import cryptography
 
 
 def hash_password(password: str) -> str:
-    """Hash a plaintext password using bcrypt."""
+    
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 
 def check_password(password: str, password_hash: str) -> bool:
-    """Verify a plaintext password against a bcrypt hash."""
-    return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+   return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+
+def hash_emails(email:str)->str:
+    return cryptography.hash(email.encode("uft-8"), cryptography.SHA256()).hexdigest()
 
 
 def get_identity():
-    """Get current user identity from JWT as a dict."""
+ 
     user_id = get_jwt_identity()
     claims = get_jwt()
     return {
@@ -26,7 +29,7 @@ def get_identity():
 
 
 def role_required(*roles):
-    """Decorator to restrict access to specific user roles."""
+
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):

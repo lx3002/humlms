@@ -163,7 +163,7 @@ def validate_assessment_type_availability(course_id, assessment_type):
 
 @lecturer_bp.route('/lecturer/dashboard')
 @jwt_required()
-@role_required('lecturer')
+@role_required('lecturer', 'admin')
 def dashboard():
     return render_template('lecturer_panel.html')
 
@@ -212,19 +212,19 @@ def read_material_lecturer(material_id):
 
 @lecturer_bp.route('/lecturer/classes')
 @jwt_required()
-@role_required('lecturer')
+@role_required('lecturer', 'admin')
 def classes_page():
     return render_template('classes.html')
 
 
 @lecturer_bp.route('/lecturer/profile')
 @jwt_required()
-@role_required('lecturer')
+@role_required('lecturer', 'admin')
 def profile_page():
     return render_template('lecturer_profile.html')
 
 
-# ──────────────── COURSE MANAGEMENT ────────────────
+
 
 @lecturer_bp.route('/api/lecturer/courses', methods=['GET'])
 @jwt_required()
@@ -238,7 +238,7 @@ def get_my_courses():
 
 @lecturer_bp.route('/api/lecturer/courses', methods=['POST'])
 @jwt_required()
-@role_required('lecturer')
+@role_required('lecturer', 'admin')
 def create_course():
     identity = get_identity()
     data = request.get_json()
@@ -264,7 +264,7 @@ def create_course():
 
 @lecturer_bp.route('/api/lecturer/courses/<int:course_id>', methods=['PUT'])
 @jwt_required()
-@role_required('lecturer')
+@role_required('lecturer', 'admin')
 def update_course(course_id):
     identity = get_identity()
     course = Course.query.filter_by(id=course_id, lecturer_id=identity['id']).first()
@@ -282,7 +282,7 @@ def update_course(course_id):
 
 @lecturer_bp.route('/api/lecturer/courses/<int:course_id>', methods=['DELETE'])
 @jwt_required()
-@role_required('lecturer')
+@role_required('lecturer', 'admin')
 def delete_course(course_id):
     identity = get_identity()
     course = Course.query.filter_by(id=course_id, lecturer_id=identity['id']).first()
@@ -298,7 +298,7 @@ def delete_course(course_id):
 
 @lecturer_bp.route('/api/lecturer/courses/<int:course_id>/lectures', methods=['GET'])
 @jwt_required()
-@role_required('lecturer')
+@role_required('lecturer', 'admin')
 def get_lectures(course_id):
     identity = get_identity()
     course = Course.query.filter_by(id=course_id, lecturer_id=identity['id']).first()
@@ -311,7 +311,7 @@ def get_lectures(course_id):
 
 @lecturer_bp.route('/api/lecturer/courses/<int:course_id>/lectures', methods=['POST'])
 @jwt_required()
-@role_required('lecturer')
+@role_required('lecturer', 'admin')
 def create_lecture(course_id):
     identity = get_identity()
     course = Course.query.filter_by(id=course_id, lecturer_id=identity['id']).first()
@@ -329,16 +329,17 @@ def create_lecture(course_id):
     )
     db.session.add(lecture)
     db.session.commit()
-    return jsonify({'message': 'Lecture created', 'lecture': lecture.to_dict()}), 201
+    return jsonify({'message': 'Lecture created', 'lecture': lecture.to_dict()}), 200
 
 
 @lecturer_bp.route('/api/lecturer/lectures/<int:lecture_id>', methods=['PUT'])
 @jwt_required()
-@role_required('lecturer')
+@role_required('lecturer', 'admin')
 def update_lecture(lecture_id):
     identity = get_identity()
     lecture = Lecture.query.get(lecture_id)
-    if not lecture:
+    admin = User.query.filter_by (id= identity['id'], role= 'admin').first()
+    if not lecture or not admin:
         return jsonify({'error': 'Lecture not found'}), 404
 
     course = Course.query.filter_by(id=lecture.course_id, lecturer_id=identity['id']).first()
@@ -1103,6 +1104,41 @@ def grade_submission(submission_id):
     db.session.commit()
 
     return jsonify({'message': 'Submission graded', 'submission': submission.to_dict()})
+
+
+@lecturer_bp.route('/api/lecturer/submissions/<int:submission_id>/override-score', methods=['PUT'])
+@jwt_required()
+@role_required('lecturer')
+def override_submission_score(submission_id):
+    identity = get_identity()
+    submission = Submission.query.get(submission_id)
+    if not submission:
+        return jsonify({'error': 'Submission not found'}), 404
+
+    exam = Exam.query.get(submission.exam_id)
+    course = Course.query.filter_by(id=exam.course_id, lecturer_id=identity['id']).first()
+    if not course:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json() or {}
+    score = data.get('score', None)
+    try:
+        score = float(score)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Score must be a number.'}), 400
+
+    if score < 0:
+        return jsonify({'error': 'Score must be zero or higher.'}), 400
+
+    if exam and exam.total_marks is not None and score > exam.total_marks:
+        return jsonify({'error': f'Score cannot exceed {exam.total_marks}.'}), 400
+
+    submission.total_score = score
+    submission.is_graded = True
+    submission.status = 'graded'
+    db.session.commit()
+
+    return jsonify({'message': 'Score updated', 'submission': submission.to_dict()})
 
 
 # ──────────────── ENROLLED STUDENTS ────────────────

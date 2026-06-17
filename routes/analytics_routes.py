@@ -25,7 +25,6 @@ def _score_trend(scores):
     return 'stable'
 
 
-# ──────────────── PAGE ROUTES ────────────────
 
 @analytics_bp.route('/analytics')
 @jwt_required()
@@ -67,7 +66,7 @@ def student_overview():
 @analytics_bp.route('/api/analytics/course/<int:course_id>', methods=['GET'])
 @jwt_required()
 @role_required('lecturer', 'admin')
-def course_analytics(course_id):
+def course_analytics(course_id, student_id):
     identity = get_identity()
 
     if identity['role'] == 'lecturer':
@@ -75,7 +74,7 @@ def course_analytics(course_id):
         if not course:
             return jsonify({'error': 'Course not found'}), 404
 
-    total_students = Enrollment.query.filter_by(course_id=course_id, status='active').count()
+    total_students = Enrollment.query.filter_by(course_id=course_id,student_id= student_id, status='active').count()
 
     # Exam performance
     exams = Exam.query.filter_by(course_id=course_id).all()
@@ -108,8 +107,8 @@ def course_analytics(course_id):
 def course_student_insights(course_id):
     identity = get_identity()
 
-    if identity['role'] == 'lecturer':
-        course = Course.query.filter_by(id=course_id, lecturer_id=identity['id']).first()
+    if identity['role'] == 'lecturer' or 'admin':
+        course = Course.query.filter_by(id=course_id, lecturer_id=identity['id'], admin_id = identity['id']).first()
         if not course:
             return jsonify({'error': 'Course not found'}), 404
     else:

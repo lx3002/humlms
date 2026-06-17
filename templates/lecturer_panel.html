@@ -268,6 +268,69 @@
             <div class="text-center text-black/30 col-span-full py-12">Loading courses...</div>
         </div>
         </div>
+
+        <div id="results-view" class="hidden">
+            <div class="bg-white rounded-2xl border border-black/[0.06] p-5 md:p-6 mb-6">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div>
+                        <h3 class="text-xl font-semibold text-black">Results Center</h3>
+                        <p class="text-sm text-black/45 mt-1">Review CATs, assignments, and exams. Filter, release grades, and adjust scores when needed.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="results-release-btn" onclick="toggleReleaseGrades(resultsState.currentExamId)"
+                                class="px-4 py-2 text-sm bg-black hover:bg-black/80 text-white font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                            Release Grades
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mt-5">
+                    <div>
+                        <label class="block text-xs font-medium text-black/50 mb-1">Course (Unit)</label>
+                        <select id="results-course" class="w-full px-3 py-2.5 border border-black/10 rounded-xl text-sm text-black">
+                            <option value="">Loading courses...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-black/50 mb-1">Assessment Type</label>
+                        <select id="results-assessment" class="w-full px-3 py-2.5 border border-black/10 rounded-xl text-sm text-black">
+                            <option value="all">All</option>
+                            <option value="cat1">CAT 1</option>
+                            <option value="cat2">CAT 2</option>
+                            <option value="assignment">Assignment</option>
+                            <option value="main_exam">Main Exam</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-black/50 mb-1">Assessment</label>
+                        <select id="results-exam" class="w-full px-3 py-2.5 border border-black/10 rounded-xl text-sm text-black">
+                            <option value="">Select assessment</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-black/50 mb-1">Status</label>
+                        <select id="results-status" class="w-full px-3 py-2.5 border border-black/10 rounded-xl text-sm text-black">
+                            <option value="all">All</option>
+                            <option value="graded">Graded</option>
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-black/50 mb-1">Search Student</label>
+                        <input id="results-search" type="text" placeholder="Search by name" class="w-full px-3 py-2.5 border border-black/10 rounded-xl text-sm text-black" />
+                    </div>
+                </div>
+
+                <div id="results-summary-chips" class="mt-4 flex flex-wrap gap-2 text-xs text-black/60"></div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-black/[0.06]">
+                <div id="results-table-wrap" class="p-5 md:p-6">
+                    <div class="text-center text-black/30 py-10">Select a course and assessment to view results.</div>
+                </div>
+            </div>
+        </div>
         </section>
 
         <!-- Course Detail Panel (hidden by default) -->
@@ -837,6 +900,17 @@ window.addEventListener('scroll', () => {
 let currentCourseId = null;
 let currentOverviewMode = 'dashboard';
 let activeCourseTab = 'lectures';
+const resultsState = {
+    initialized: false,
+    courses: [],
+    exams: [],
+    submissions: [],
+    currentCourseId: null,
+    currentExamId: null,
+    assessment: 'all',
+    status: 'all',
+    query: ''
+};
 
 function updateCourseDetailUrl(courseId, tab) {
     const params = new URLSearchParams(window.location.search);
@@ -868,7 +942,19 @@ function setOverviewView(mode) {
     currentOverviewMode = mode;
     const dashboardView = document.getElementById('dashboard-view');
     const myCoursesView = document.getElementById('my-courses-view');
+    const resultsView = document.getElementById('results-view');
     if (!dashboardView || !myCoursesView) return;
+
+    if (resultsView) {
+        resultsView.classList.add('hidden');
+    }
+
+    if (mode === 'results') {
+        dashboardView.classList.add('hidden');
+        myCoursesView.classList.add('hidden');
+        if (resultsView) resultsView.classList.remove('hidden');
+        return;
+    }
 
     if (mode === 'courses') {
         dashboardView.classList.add('hidden');
@@ -911,6 +997,14 @@ async function navigateLecturer(target) {
         setOverviewView(target === 'dashboard' ? 'dashboard' : 'courses');
         toggleCreateCourseCTA(target === 'courses');
         await loadCourses();
+        return;
+    }
+    if (target === 'results') {
+        setActiveNav('nav-academics');
+        closeCourseDetail();
+        setOverviewView('results');
+        toggleCreateCourseCTA(false);
+        await loadResultsView();
         return;
     }
     if (target === 'materials') {
@@ -1697,6 +1791,333 @@ async function loadExamsOverview() {
     }).join('');
 }
 
+async function loadResultsView() {
+    if (!resultsState.initialized) {
+        initResultsFilters();
+        resultsState.initialized = true;
+    }
+    await loadResultsCourses();
+}
+
+function initResultsFilters() {
+    const courseEl = document.getElementById('results-course');
+    const assessmentEl = document.getElementById('results-assessment');
+    const examEl = document.getElementById('results-exam');
+    const statusEl = document.getElementById('results-status');
+    const searchEl = document.getElementById('results-search');
+
+    if (courseEl) {
+        courseEl.addEventListener('change', async (e) => {
+            resultsState.currentCourseId = parseInt(e.target.value || '', 10) || null;
+            currentCourseId = resultsState.currentCourseId;
+            await loadResultsExams(resultsState.currentCourseId);
+        });
+    }
+
+    if (assessmentEl) {
+        assessmentEl.addEventListener('change', () => {
+            resultsState.assessment = assessmentEl.value || 'all';
+            applyResultsExamOptions();
+        });
+    }
+
+    if (examEl) {
+        examEl.addEventListener('change', async (e) => {
+            resultsState.currentExamId = parseInt(e.target.value || '', 10) || null;
+            await loadResultsSubmissions(resultsState.currentExamId);
+        });
+    }
+
+    if (statusEl) {
+        statusEl.addEventListener('change', () => {
+            resultsState.status = statusEl.value || 'all';
+            renderResultsTable();
+        });
+    }
+
+    if (searchEl) {
+        searchEl.addEventListener('input', () => {
+            resultsState.query = searchEl.value || '';
+            renderResultsTable();
+        });
+    }
+}
+
+async function loadResultsCourses() {
+    const courseEl = document.getElementById('results-course');
+    if (!courseEl) return;
+
+    courseEl.innerHTML = '<option value="">Loading courses...</option>';
+    const resp = await AUTH.fetch('/api/lecturer/courses');
+    if (!resp.ok) {
+        courseEl.innerHTML = '<option value="">Unable to load courses</option>';
+        return;
+    }
+
+    const data = await resp.json();
+    const courses = data.items || [];
+    resultsState.courses = courses;
+
+    if (courses.length === 0) {
+        courseEl.innerHTML = '<option value="">No courses found</option>';
+        return;
+    }
+
+    if (!resultsState.currentCourseId || !courses.find(c => c.id === resultsState.currentCourseId)) {
+        resultsState.currentCourseId = courses[0].id;
+    }
+    currentCourseId = resultsState.currentCourseId;
+
+    courseEl.innerHTML = courses.map(course => `
+        <option value="${course.id}" ${course.id === resultsState.currentCourseId ? 'selected' : ''}>
+            ${course.code} — ${course.title}
+        </option>
+    `).join('');
+
+    await loadResultsExams(resultsState.currentCourseId);
+}
+
+function getSelectedResultsExam() {
+    return resultsState.exams.find(ex => ex.id === resultsState.currentExamId) || null;
+}
+
+function applyResultsExamOptions() {
+    const examEl = document.getElementById('results-exam');
+    if (!examEl) return;
+
+    const filtered = resultsState.exams.filter(exam => {
+        if (resultsState.assessment === 'all') return true;
+        return getAssessmentTypeFromExam(exam) === resultsState.assessment;
+    });
+
+    if (filtered.length === 0) {
+        resultsState.currentExamId = null;
+        examEl.innerHTML = '<option value="">No assessments available</option>';
+        updateResultsReleaseButton();
+        renderResultsTable();
+        return;
+    }
+
+    if (!resultsState.currentExamId || !filtered.find(ex => ex.id === resultsState.currentExamId)) {
+        resultsState.currentExamId = filtered[0].id;
+    }
+
+    examEl.innerHTML = filtered.map(exam => {
+        const label = `${formatAssessmentType(exam)} — ${exam.title}`;
+        return `<option value="${exam.id}" ${exam.id === resultsState.currentExamId ? 'selected' : ''}>${label}</option>`;
+    }).join('');
+
+    loadResultsSubmissions(resultsState.currentExamId);
+}
+
+async function loadResultsExams(courseId) {
+    const examEl = document.getElementById('results-exam');
+    if (!courseId || !examEl) {
+        resultsState.exams = [];
+        resultsState.currentExamId = null;
+        examEl.innerHTML = '<option value="">Select a course</option>';
+        updateResultsReleaseButton();
+        renderResultsTable();
+        return;
+    }
+
+    examEl.innerHTML = '<option value="">Loading assessments...</option>';
+    const resp = await AUTH.fetch(`/api/lecturer/courses/${courseId}/exams`);
+    if (!resp.ok) {
+        resultsState.exams = [];
+        resultsState.currentExamId = null;
+        examEl.innerHTML = '<option value="">Unable to load assessments</option>';
+        updateResultsReleaseButton();
+        renderResultsTable();
+        return;
+    }
+
+    const data = await resp.json();
+    resultsState.exams = data.exams || [];
+    applyResultsExamOptions();
+}
+
+async function loadResultsSubmissions(examId) {
+    const wrap = document.getElementById('results-table-wrap');
+    if (!wrap) return;
+
+    if (!examId) {
+        resultsState.submissions = [];
+        updateResultsSummary();
+        wrap.innerHTML = '<div class="text-center text-black/30 py-10">Select an assessment to view results.</div>';
+        return;
+    }
+
+    wrap.innerHTML = '<div class="text-center text-black/30 py-10">Loading results...</div>';
+    const resp = await AUTH.fetch(`/api/lecturer/exams/${examId}/submissions`);
+    if (!resp.ok) {
+        resultsState.submissions = [];
+        updateResultsSummary();
+        wrap.innerHTML = '<div class="text-center text-red-500 py-10">Failed to load results.</div>';
+        return;
+    }
+
+    const data = await resp.json();
+    resultsState.submissions = data.submissions || [];
+    updateResultsReleaseButton();
+    renderResultsTable();
+}
+
+function updateResultsReleaseButton() {
+    const btn = document.getElementById('results-release-btn');
+    if (!btn) return;
+    const exam = getSelectedResultsExam();
+    if (!exam) {
+        btn.disabled = true;
+        btn.textContent = 'Release Grades';
+        btn.className = 'px-4 py-2 text-sm bg-black hover:bg-black/80 text-white font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+        return;
+    }
+
+    const hasGrades = (exam.graded_count || 0) > 0;
+    btn.disabled = !hasGrades;
+    if (exam.grades_released) {
+        btn.textContent = 'Hide Grades';
+        btn.className = 'px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+    } else {
+        btn.textContent = 'Release Grades';
+        btn.className = 'px-4 py-2 text-sm bg-black hover:bg-black/80 text-white font-semibold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+    }
+}
+
+function updateResultsSummary() {
+    const chipEl = document.getElementById('results-summary-chips');
+    if (!chipEl) return;
+
+    const subs = resultsState.submissions || [];
+    const graded = subs.filter(s => s.is_graded);
+    const pending = subs.filter(s => !s.is_graded && s.status !== 'in_progress');
+    const inProgress = subs.filter(s => s.status === 'in_progress');
+    const scores = graded.map(s => Number(s.total_score || 0));
+    const avgScore = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+    const exam = getSelectedResultsExam();
+    const totalMarks = exam && exam.total_marks ? exam.total_marks : null;
+
+    chipEl.innerHTML = `
+        <span class="px-2.5 py-1 rounded-full bg-black/[0.04]">${subs.length} submissions</span>
+        <span class="px-2.5 py-1 rounded-full bg-black/[0.04]">${graded.length} graded</span>
+        <span class="px-2.5 py-1 rounded-full bg-black/[0.04]">${pending.length} pending</span>
+        <span class="px-2.5 py-1 rounded-full bg-black/[0.04]">${inProgress.length} in progress</span>
+        <span class="px-2.5 py-1 rounded-full bg-black/[0.04]">Avg score: ${avgScore.toFixed(1)}${totalMarks ? ` / ${totalMarks}` : ''}</span>
+    `;
+}
+
+function renderResultsTable() {
+    const wrap = document.getElementById('results-table-wrap');
+    if (!wrap) return;
+
+    const exam = getSelectedResultsExam();
+    const totalMarks = exam && exam.total_marks ? exam.total_marks : null;
+    const subs = resultsState.submissions || [];
+    let filtered = [...subs];
+
+    if (resultsState.status === 'graded') {
+        filtered = filtered.filter(s => s.is_graded);
+    } else if (resultsState.status === 'pending') {
+        filtered = filtered.filter(s => !s.is_graded && s.status !== 'in_progress');
+    } else if (resultsState.status === 'in_progress') {
+        filtered = filtered.filter(s => s.status === 'in_progress');
+    }
+
+    if (resultsState.query) {
+        const q = resultsState.query.toLowerCase();
+        filtered = filtered.filter(s => (s.student_name || '').toLowerCase().includes(q));
+    }
+
+    updateResultsSummary();
+
+    if (!exam) {
+        wrap.innerHTML = '<div class="text-center text-black/30 py-10">Select an assessment to view results.</div>';
+        return;
+    }
+
+    if (filtered.length === 0) {
+        wrap.innerHTML = '<div class="text-center text-black/30 py-10">No results match your filters.</div>';
+        return;
+    }
+
+    wrap.innerHTML = `
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-black/[0.02] border-b border-black/[0.06]">
+                    <tr>
+                        <th class="text-left py-3 px-4 font-medium text-black/50">Student</th>
+                        <th class="text-center py-3 px-4 font-medium text-black/50">Status</th>
+                        <th class="text-center py-3 px-4 font-medium text-black/50">Score</th>
+                        <th class="text-left py-3 px-4 font-medium text-black/50">Assessment</th>
+                        <th class="text-left py-3 px-4 font-medium text-black/50">Submitted</th>
+                        <th class="text-center py-3 px-4 font-medium text-black/50">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-black/[0.04]">
+                    ${filtered.map(s => {
+                        const statusLabel = s.status === 'graded'
+                            ? '<span class="text-xs px-2 py-0.5 rounded-full bg-black/5 text-black/60 font-medium">Graded</span>'
+                            : s.status === 'submitted'
+                            ? '<span class="text-xs px-2 py-0.5 rounded-full bg-black/[0.04] text-black/50 font-medium">Needs Review</span>'
+                            : '<span class="text-xs px-2 py-0.5 rounded-full bg-black/[0.03] text-black/40 font-medium">In Progress</span>';
+                        const scoreValue = s.is_graded ? (s.total_score != null ? s.total_score : '-') : '—';
+                        const scoreText = totalMarks && scoreValue !== '—' ? `${scoreValue} / ${totalMarks}` : scoreValue;
+                        const canEdit = s.status !== 'in_progress';
+                        return `
+                            <tr class="hover:bg-black/[0.02]">
+                                <td class="py-3 px-4 font-medium text-black">${s.student_name || 'Unknown'}</td>
+                                <td class="py-3 px-4 text-center">${statusLabel}</td>
+                                <td class="py-3 px-4 text-center font-semibold ${s.is_graded ? 'text-black' : 'text-black/30'}">${scoreText}</td>
+                                <td class="py-3 px-4 text-xs text-black/50">${formatAssessmentType(exam)} · ${exam.title}</td>
+                                <td class="py-3 px-4 text-xs text-black/40">${s.submitted_at ? new Date(s.submitted_at).toLocaleString() : '—'}</td>
+                                <td class="py-3 px-4 text-center">
+                                    ${canEdit ? `<button onclick="editSubmissionScore(${s.id}, ${s.total_score != null ? s.total_score : 'null'})" class="text-xs bg-black/[0.04] text-black/60 px-2.5 py-1 rounded-lg hover:bg-black/[0.08] font-medium">Edit</button>` : '<span class="text-xs text-black/30">—</span>'}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+async function editSubmissionScore(submissionId, currentScore) {
+    const exam = getSelectedResultsExam();
+    const maxScore = exam && exam.total_marks ? exam.total_marks : null;
+    const value = await showPromptModal({
+        title: 'Edit Total Score',
+        message: maxScore ? `Enter the new total score (0 - ${maxScore}).` : 'Enter the new total score.',
+        placeholder: maxScore ? `0 - ${maxScore}` : 'Score',
+        value: currentScore != null ? String(currentScore) : ''
+    });
+    if (value === null) return;
+
+    const parsed = Number(value);
+    if (Number.isNaN(parsed) || parsed < 0) {
+        showNoticeModal({ title: 'Invalid Score', message: 'Enter a valid score (0 or higher).' });
+        return;
+    }
+    if (maxScore != null && parsed > maxScore) {
+        showNoticeModal({ title: 'Score Too High', message: `Score cannot exceed ${maxScore}.` });
+        return;
+    }
+
+    const resp = await AUTH.fetch(`/api/lecturer/submissions/${submissionId}/override-score`, {
+        method: 'PUT',
+        body: JSON.stringify({ score: parsed })
+    });
+
+    if (!resp.ok) {
+        const d = await resp.json().catch(() => ({}));
+        showNoticeModal({ title: 'Update Failed', message: d.error || 'Failed to update score.' });
+        return;
+    }
+
+    await loadResultsSubmissions(resultsState.currentExamId);
+}
+
 async function deleteExam(examId, refreshOverview = false) {
     const confirmed = await showConfirmModal({
         title: 'Delete Exam',
@@ -1963,6 +2384,10 @@ async function toggleReleaseGrades(examId) {
         loadExams();
         if (document.getElementById('submissions-modal').classList.contains('hidden') === false) {
             await loadSubmissions(examId);
+        }
+        const resultsView = document.getElementById('results-view');
+        if (resultsView && resultsView.classList.contains('hidden') === false) {
+            await loadResultsExams(resultsState.currentCourseId);
         }
     } else {
         const d = await resp.json().catch(() => ({}));
@@ -2271,7 +2696,7 @@ async function initializeLecturerDashboard() {
     const requestedAction = (params.get('action') || '').toLowerCase();
     const requestedCourseId = parseInt(params.get('courseId') || '', 10);
     const requestedTab = (params.get('tab') || '').toLowerCase();
-    const allowedViews = new Set(['dashboard', 'courses', 'lectures', 'materials', 'exams']);
+    const allowedViews = new Set(['dashboard', 'courses', 'lectures', 'materials', 'exams', 'results']);
     const initialView = allowedViews.has(requestedView) ? requestedView : 'dashboard';
 
     await navigateLecturer(initialView);

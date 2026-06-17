@@ -1,22 +1,16 @@
-"""
-Difficulty Engine Module
-Dynamically adjusts question difficulty based on student performance.
-Implements Item Response Theory (IRT) simplified model.
-"""
+
+
 from database.models import db, Question, Answer, Submission
 
 
 class DifficultyEngine:
-    """Adaptive difficulty engine using performance-based calibration."""
+    
 
     # Bloom's taxonomy ordered by difficulty
     BLOOM_ORDER = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']
 
     def get_adaptive_difficulty(self, student_id, course_id):
-        """
-        Determine the appropriate difficulty level for the next assessment
-        based on the student's performance history.
-        """
+        
         from database.models import Exam
 
         exams = Exam.query.filter_by(course_id=course_id).all()
@@ -62,10 +56,7 @@ class DifficultyEngine:
         return recommended
 
     def calibrate_question_difficulty(self, question_id):
-        """
-        Recalibrate a question's effective difficulty based on how students perform.
-        Returns the empirical difficulty rating.
-        """
+        
         answers = Answer.query.filter_by(question_id=question_id).all()
         if not answers:
             return None

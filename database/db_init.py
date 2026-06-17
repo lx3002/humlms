@@ -29,3 +29,6 @@ def _seed_admin(app):
             db.session.add(admin)
             db.session.commit()
             print("[MindStack] Default admin created: admin@mindstack.com / admin123")
+
+
+# 111Admin@

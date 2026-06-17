@@ -8,8 +8,8 @@ class AuthenticationService:
     """Handles user registration, login, and token management."""
 
     @staticmethod
-    def register(email, password, first_name, last_name, role='student'):
-        """Register a new user."""
+    def register(email, password, first_name, last_name, role):
+        
         # Validate email format
         if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
             return None, 'Invalid email format.'
